@@ -1,0 +1,149 @@
+/*
+  https://github.com/syuilo/aiscript
+  https://github.com/misskey-dev/misskey/blob/develop/packages/frontend/src/scripts/aiscript/api.ts
+  https://github.com/misskey-dev/misskey/blob/develop/packages/frontend/src/scripts/aiscript/ui.ts
+  
+  @ 0.13.2
+*/
+let appSettings = {
+  fps: 60
+  fpsSamples: 120
+  loopLogic: "interval"
+}
+
+Ui:render([
+  Ui:C:container({
+    align: "left"
+    children: [
+      Ui:C:mfm({ text: "1" }, "counter")
+      Ui:C:mfm({ text: "2" }, "timerDt")
+      Ui:C:mfm({ text: "3" }, "dt")
+      Ui:C:mfm({ text: "4" }, "realFps")
+      Ui:C:mfm({ text: "5" }, "err")
+    ]
+  })
+])
+
+let rnd = Math:gen_rng(`{USER_ID}{Date:year()}{Date:month()}{Date:day()}`)
+var frameCnt = 0
+var timerDt = 0
+
+@init() {
+  // do App initialization
+  frameCnt = 0
+  timerDt = 0
+}
+@update(dt) {
+  frameCnt += 1
+  timerDt += dt
+  
+  Ui:get("counter").update({text: `{frameCnt}`})
+  Ui:get("timerDt").update({text: `{timerDt}`})
+  Ui:get("dt").update({text: `{dt}`})
+  Ui:get("realFps").update({text: `{Ft.getRealFps()}`})
+  Ui:get("err").update({text: if (Ft.err < 0) {
+    `{Ft.err}`
+  }
+  else {
+    ` {Ft.err}`
+  }})
+}
+
+let Util = {
+  clearArray: @(arr) {
+    for(arr.len) {
+      arr.shift()
+    }
+  }
+}
+
+// FrameTimer
+let Ft = {
+  targetFps: 30
+  targetFt: 1000 / 30
+  dt: 1.0 / 30
+  err: 0
+
+  _lastDate: -1
+  _samples: []
+  _sampleNum: 20
+
+  init: @(settings) {
+    Ft.targetFps = settings.fps
+    Ft.targetFt = 1000 / settings.fps
+    Ft.dt = 1.0 / settings.fps
+    Ft.err = 0
+    Ft._lastDate = -1
+    Ft._sampleNum = settings.fpsSamples
+    Util.clearArray(Ft._samples)
+  }
+  update: @() {
+    var now = Date:now()
+    if (Ft._lastDate != -1) {
+      var dt = now - Ft._lastDate
+      Ft.dt = dt / 1000
+      Ft.err = dt - Ft.targetFt
+      Ft._addSample(1.0 / Ft.dt)
+    }
+    Ft._lastDate = now
+  }
+  getRealFps: @() {
+    var total = 0
+    each (let fps, Ft._samples) {
+      total += fps
+    }
+    if (Ft._samples.len == 0) {
+      0
+    }
+    else {
+      total / Ft._samples.len
+    }
+  }
+  _addSample: @(fps) {
+    Ft._samples.push(fps)
+    if (Ft._samples.len > Ft._sampleNum) {
+      Ft._samples.shift()
+    }
+  }
+}
+
+let App = {
+  _loopLogic: "interval"
+  
+  init: @(settings) {
+    App._init(settings)
+    init()
+  }
+  run: @() {
+    if (App._loopLogic == "interval") {
+      Async:interval(Ft.targetFt, @() {
+        App._update()
+      }, true)
+    }
+    elif (_loopLogic == "timeout") {
+      App._mainLoop()
+    }
+  }
+  _init: @(settings) {
+    App._loopLogic = settings.loopLogic
+    Ft.init(settings)
+  }
+  _update: @() {
+    Ft.update()
+    update(Ft.dt)
+  }
+  _mainLoop: @() {
+    App._update()
+    var err = if (Ft.err > 0) {
+      Ft.err
+    }
+    else {
+      0
+    }
+    Async:timeout(Ft.targetFt - err, @() {
+      App._mainLoop()
+    })
+  }
+}
+App.init(appSettings)
+App.run()
