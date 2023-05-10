@@ -1,4 +1,5 @@
 /*
+  https://github.com/beansproutman3163/MisskeyPlay/blob/main/play_game_template.is
   https://github.com/syuilo/aiscript
   https://github.com/misskey-dev/misskey/blob/develop/packages/frontend/src/scripts/aiscript/api.ts
   https://github.com/misskey-dev/misskey/blob/develop/packages/frontend/src/scripts/aiscript/ui.ts
@@ -20,6 +21,9 @@ Ui:render([
       Ui:C:mfm({ text: "3" }, "dt")
       Ui:C:mfm({ text: "4" }, "realFps")
       Ui:C:mfm({ text: "5" }, "err")
+	  Ui:C:button({ text: "reset" primary: true rounded: true onClick:@() {
+
+	  } })
     ]
   })
 ])
@@ -37,15 +41,15 @@ var timerDt = 0
   frameCnt += 1
   timerDt += dt
   
-  Ui:get("counter").update({text: `{frameCnt}`})
-  Ui:get("timerDt").update({text: `{timerDt}`})
-  Ui:get("dt").update({text: `{dt}`})
-  Ui:get("realFps").update({text: `{Ft.getRealFps()}`})
+  Ui:get("counter").update({text: `FrameCount : {frameCnt}`})
+  Ui:get("timerDt").update({text: `Time : {timerDt}`})
+  Ui:get("dt").update({text: `DeltaTime : {dt}`})
+  Ui:get("realFps").update({text: `Fps : {Ft.getRealFps()}`})
   Ui:get("err").update({text: if (Ft.err < 0) {
-    `{Ft.err}`
+    `err : {Ft.err}`
   }
   else {
-    ` {Ft.err}`
+    `err :  {Ft.err}`
   }})
 }
 
@@ -109,6 +113,7 @@ let Ft = {
 
 let App = {
   _loopLogic: "interval"
+  _braker: @(){}
   
   init: @(settings) {
     App._init(settings)
@@ -116,13 +121,16 @@ let App = {
   }
   run: @() {
     if (App._loopLogic == "interval") {
-      Async:interval(Ft.targetFt, @() {
+      App._braker = Async:interval(Ft.targetFt, @() {
         App._update()
       }, true)
     }
-    elif (_loopLogic == "timeout") {
+    elif (App._loopLogic == "timeout") {
       App._mainLoop()
     }
+	elif (App._loopLogic == "loop") {
+		
+	}
   }
   _init: @(settings) {
     App._loopLogic = settings.loopLogic
@@ -140,9 +148,12 @@ let App = {
     else {
       0
     }
-    Async:timeout(Ft.targetFt - err, @() {
+    App._braker = Async:timeout(Ft.targetFt - err, @() {
       App._mainLoop()
     })
+  }
+  stop: @() {
+	App._braker()
   }
 }
 App.init(appSettings)
