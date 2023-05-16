@@ -6,10 +6,9 @@
   
   @ 0.13.2
 */
-let appSettings = {
-  fps: 60
+let config = {
+  fps: 30
   fpsSamples: 120
-  loopLogic: "interval"
 }
 
 Ui:render([
@@ -21,9 +20,7 @@ Ui:render([
       Ui:C:mfm({ text: "3" }, "dt")
       Ui:C:mfm({ text: "4" }, "realFps")
       Ui:C:mfm({ text: "5" }, "err")
-	  Ui:C:button({ text: "reset" primary: true rounded: true onClick:@() {
-
-	  } })
+      Ui:C:mfm({ text: "6" }, "renderTime")
     ]
   })
 ])
@@ -37,10 +34,12 @@ var timerDt = 0
   frameCnt = 0
   timerDt = 0
 }
+
 @update(dt) {
   frameCnt += 1
   timerDt += dt
-  
+
+  var t0 = Date:now()
   Ui:get("counter").update({text: `FrameCount : {frameCnt}`})
   Ui:get("timerDt").update({text: `Time : {timerDt}`})
   Ui:get("dt").update({text: `DeltaTime : {dt}`})
@@ -51,6 +50,7 @@ var timerDt = 0
   else {
     `err :  {Ft.err}`
   }})
+  Ui:get("renderTime").update({text: `renderTime : {Date:now() - t0}`})
 }
 
 let Util = {
@@ -63,22 +63,22 @@ let Util = {
 
 // FrameTimer
 let Ft = {
-  targetFps: 30
-  targetFt: 1000 / 30
-  dt: 1.0 / 30
+  targetFps: 0
+  targetFt: 0
+  dt: 0
   err: 0
 
   _lastDate: -1
   _samples: []
-  _sampleNum: 20
+  _sampleNum: 0
 
-  init: @(settings) {
-    Ft.targetFps = settings.fps
-    Ft.targetFt = 1000 / settings.fps
-    Ft.dt = 1.0 / settings.fps
+  init: @(conf) {
+    Ft.targetFps = conf.fps
+    Ft.targetFt = 1000 / conf.fps
+    Ft.dt = 1.0 / conf.fps
     Ft.err = 0
     Ft._lastDate = -1
-    Ft._sampleNum = settings.fpsSamples
+    Ft._sampleNum = conf.fpsSamples
     Util.clearArray(Ft._samples)
   }
   update: @() {
@@ -111,50 +111,23 @@ let Ft = {
   }
 }
 
-let App = {
-  _loopLogic: "interval"
-  _braker: @(){}
-  
-  init: @(settings) {
-    App._init(settings)
-    init()
-  }
-  run: @() {
-    if (App._loopLogic == "interval") {
-      App._braker = Async:interval(Ft.targetFt, @() {
-        App._update()
-      }, true)
+@run() {
+  Ft.init(config)
+  init()
+
+  Async:timeout(1, @() {
+    loop {
+      var t = Date:now()
+      loop {
+        if ((Date:now() - t) >= Ft.targetFt - Ft.err) {
+          break
+        }
+      }
+
+      update(Ft.dt)
+      Ft.update()
     }
-    elif (App._loopLogic == "timeout") {
-      App._mainLoop()
-    }
-	elif (App._loopLogic == "loop") {
-		
-	}
-  }
-  _init: @(settings) {
-    App._loopLogic = settings.loopLogic
-    Ft.init(settings)
-  }
-  _update: @() {
-    Ft.update()
-    update(Ft.dt)
-  }
-  _mainLoop: @() {
-    App._update()
-    var err = if (Ft.err > 0) {
-      Ft.err
-    }
-    else {
-      0
-    }
-    App._braker = Async:timeout(Ft.targetFt - err, @() {
-      App._mainLoop()
-    })
-  }
-  stop: @() {
-	App._braker()
-  }
+  })
 }
-App.init(appSettings)
-App.run()
+
+run()
